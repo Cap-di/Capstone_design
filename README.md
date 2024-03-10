@@ -1,4 +1,4 @@
-# Capstone Design
+# MJU 2024 Capstone Design
 
 ## Members
 
