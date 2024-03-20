@@ -7,7 +7,6 @@
 
 ---
 
-
 - [공공 데이터 포털](https://www.data.go.kr/)
 - [고속도로 공공 데이터 포털](https://data.ex.co.kr/)
 - [서울특별시 빅데이터 캠퍼스](https://bigdata.seoul.go.kr/main.do)
@@ -18,7 +17,6 @@
 - [국가 교통 데이터](https://www.bigdata-transportation.kr/)
 - [문화 공공데이터](https://www.culture.go.kr/data/main/main.do)
 - [Ai-Hub](https://aihub.or.kr/)
-
 
 ---
 
