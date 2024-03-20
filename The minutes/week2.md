@@ -7,6 +7,18 @@
 
 ---
 
+<<<<<<< HEAD:The minutes/week2.md
+- [공공 데이터 포털](https://www.data.go.kr/)
+- [고속도로 공공 데이터 포털](https://data.ex.co.kr/)
+- [서울특별시 빅데이터 캠퍼스](https://bigdata.seoul.go.kr/main.do)
+- [기상자료 개방포털](https://data.kma.go.kr/cmmn/main.do)
+- [날씨마루](https://bd.kma.go.kr/kma2020/)
+- [캐글](https://www.kaggle.com/)
+- [보건의료 데이터](https://opendata.hira.or.kr/home.do)
+- [국가 교통 데이터](https://www.bigdata-transportation.kr/)
+- [문화 공공데이터](https://www.culture.go.kr/data/main/main.do)
+- [Ai-Hub](https://aihub.or.kr/)
+=======
 - 공공 데이터 포털 : https://www.data.go.kr/
 - 고속도로 공공 데이터 포털 : https://data.ex.co.kr/
 - 서울특별시 빅데이터 캠퍼스 : https://bigdata.seoul.go.kr/main.do
@@ -17,6 +29,7 @@
 - 국가 교통 데이터 : https://www.bigdata-transportation.kr/
 - 문화 공공데이터 : https://www.culture.go.kr/data/main/main.do
 - Ai-Hub : https://aihub.or.kr/
+>>>>>>> 3a004c44c65f2933b3c2c36e6149c375e17589de:회의록/2주차.md
 
 ---
 
