@@ -1,4 +1,4 @@
-# 2주차 회의록
+## 2주차 회의록
 
 ### 교수님 의견 반영 결과
 
@@ -7,23 +7,21 @@
 
 ---
 
-- 공공 데이터 포털 : https://www.data.go.kr/
-- 고속도로 공공 데이터 포털 : https://data.ex.co.kr/
-- 서울특별시 빅데이터 캠퍼스 : https://bigdata.seoul.go.kr/main.do
-- 기상자료 개방포털 : https://data.kma.go.kr/cmmn/main.do
-- 날씨마루 : https://bd.kma.go.kr/kma2020/
-- 캐글 : https://www.kaggle.com/
-- 보건의료 데이터 : https://opendata.hira.or.kr/home.do
-- 국가 교통 데이터 : https://www.bigdata-transportation.kr/
-- 문화 공공데이터 : https://www.culture.go.kr/data/main/main.do
-- Ai-Hub : https://aihub.or.kr/
-
+- [공공 데이터 포털](https://www.data.go.kr/)
+- [고속도로 공공 데이터 포털](https://data.ex.co.kr/)
+- [서울특별시 빅데이터 캠퍼스](https://bigdata.seoul.go.kr/main.do)
+- [기상자료 개방포털](https://data.kma.go.kr/cmmn/main.do)
+- [날씨마루](https://bd.kma.go.kr/kma2020/)
+- [캐글](https://www.kaggle.com/)
+- [보건의료 데이터](https://opendata.hira.or.kr/home.do)
+- [국가 교통 데이터](https://www.bigdata-transportation.kr/)
+- [문화 공공데이터](https://www.culture.go.kr/data/main/main.do)
+- [Ai-Hub](https://aihub.or.kr/)
 
 ---
 
 ## 아이디어 회의
 
-- 가려진 얼굴 알아내는 ai
 - ai 코디네이터
 - 법원판결 ai
 - 주가 예측 ai
