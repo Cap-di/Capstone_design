@@ -65,4 +65,8 @@
 
 ---
 
-### 일정
+### [일정](https://eogud1116s-team.monday.com/boards/1855304725/views/39101386)
+
+|      <b>Planner<b/>      |
+| :----------------------: |
+| ![일정](./src/Gantt.png) |
