@@ -541,20 +541,31 @@ class AdaLayerNorm(nn.Module):
     Norm layer modified to incorporate timestep embeddings.
 
     Parameters:
-        embedding_dim (`int`): The size of each embedding vector.
-        num_embeddings (`int`): The size of the dictionary of embeddings.
+        embedding_dim (`int`): 임베딩 할 벡터의 차원 (하이퍼파라미터)
+        num_embeddings (`int`): 임베딩을 할 단어들의 개수 (단어 집합의 크기)
     """
 
     def __init__(self, embedding_dim: int, num_embeddings: int):
         super().__init__()
+        # 임베딩 층 생성 -> lookup table 생성
         self.emb = nn.Embedding(num_embeddings, embedding_dim)
+        # activation function으로 silu함수 사용 -> Sigmoid linear unit
+        # https://sanghyu.tistory.com/182
         self.silu = nn.SiLU()
+        # 선형 변환 모델
+        # 출력 텐서가 입력 텐서 크기의 두배 -> 하나는 scale, 하나는 shift
         self.linear = nn.Linear(embedding_dim, embedding_dim * 2)
+        # 임베딩 테이블의 Feature에 대한 정규화
         self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor, timestep: torch.Tensor) -> torch.Tensor:
+        # timestep은 hidden state와 현재 입력을 연결한 정보
+        # timestep을 임베딩하고 activation함수를 적용한 뒤 선형모델에 넣는다
         emb = self.linear(self.silu(self.emb(timestep)))
+        # emb 반으로 나누어 scale과 shift에 넣는다
         scale, shift = torch.chunk(emb, 2, dim=1)
+        # scale과 shift를 unsqueeze하여 차원을 늘려야 x normalization값과 브로드캐스팅 할 수 있다
+        # 정규화된 x값에 scale을 곱하고 shift를 더해 x값을 업데이트해준다.
         x = self.norm(x) * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
         return x
 
@@ -568,6 +579,8 @@ class AdaLayerNormContinuous(nn.Module):
     """
 
     def __init__(self, embedding_dim: int, condition_dim: int):
+
+        # condition_dim은 조건부 차원으로 긴 시퀀스의 데이터를 다룰 때 조건부로 세분화할 수 있다
         super().__init__()
         self.silu = nn.SiLU()
         self.linear1 = nn.Linear(condition_dim, condition_dim)
@@ -575,6 +588,8 @@ class AdaLayerNormContinuous(nn.Module):
         self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
+
+        # 조건부 차원의 데이터를 선형모델에 넣고 activation함수를 적용하고 선형모델에 넣어 scale과 shift를 얻는다
         emb = self.linear2(self.silu(self.linear1(condition)))
         scale, shift = torch.chunk(emb, 2, dim=1)
         x = self.norm(x) * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
@@ -583,10 +598,14 @@ class AdaLayerNormContinuous(nn.Module):
 
 class Modulation(nn.Module):
     def __init__(self, embedding_dim: int, condition_dim: int, zero_init: bool = False, single_layer: bool = False):
+
+        # 출력 텐서를 입력 조건 텐서에 맞는 형태로 변조해주는 클레스
         super().__init__()
         self.silu = nn.SiLU()
+        # layer가 하나면 그대로 출력
         if single_layer:
             self.linear1 = nn.Identity()
+        # 입력 조건 텐서에 맞게 선형 모델 적용
         else:
             self.linear1 = nn.Linear(condition_dim, condition_dim)
 
@@ -594,6 +613,7 @@ class Modulation(nn.Module):
 
         # Only zero init the last linear layer
         if zero_init:
+            # scale과 shift를 0으로 초기화
             nn.init.zeros_(self.linear2.weight)
             nn.init.zeros_(self.linear2.bias)
 
@@ -607,7 +627,6 @@ class Modulation(nn.Module):
 class AdaLayerNormZero(nn.Module):
     r"""
     Norm layer adaptive layer norm zero (adaLN-Zero).
-
     Parameters:
         embedding_dim (`int`): The size of each embedding vector.
         num_embeddings (`int`): The size of the dictionary of embeddings.
@@ -615,10 +634,10 @@ class AdaLayerNormZero(nn.Module):
 
     def __init__(self, embedding_dim: int, num_embeddings: int):
         super().__init__()
-
+        # timestep과 임베딩이 라벨링된 상태의 텐서
         self.emb = CombinedTimestepLabelEmbeddings(num_embeddings, embedding_dim)
-
         self.silu = nn.SiLU()
+        # output이 6개인 선형 모델 추가 dimension 1 -> 6
         self.linear = nn.Linear(embedding_dim, 6 * embedding_dim, bias=True)
         self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False, eps=1e-6)
 
@@ -632,9 +651,12 @@ class AdaLayerNormZero(nn.Module):
         emb = self.linear(
             self.silu(self.emb(timestep, class_labels, hidden_dtype=hidden_dtype))
         )
+        # msa -> multi-head self attention
+        # mlp -> multi-layer perceptron
         shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = emb.chunk(
             6, dim=1
         )
+        # scale_msa[:, None] -> scale_msa.unsqueeze(1)인데 추가한 차원을 None으로 초기화
         x = self.norm(x) * (1 + scale_msa[:, None]) + shift_msa[:, None]
         return x, gate_msa, shift_mlp, scale_mlp, gate_mlp
 
@@ -667,7 +689,6 @@ class AdaGroupNorm(nn.Module):
             self.act = None
         else:
             self.act = get_activation(act_fn)
-
         self.linear = nn.Linear(embedding_dim, out_dim * 2)
 
     def forward(self, x: torch.Tensor, emb: torch.Tensor) -> torch.Tensor:
@@ -676,7 +697,7 @@ class AdaGroupNorm(nn.Module):
         emb = self.linear(emb)
         emb = emb[:, :, None, None]
         scale, shift = emb.chunk(2, dim=1)
-
+        # self.num_groups만큼 그룹을 나누어 정규화
         x = F.group_norm(x, self.num_groups, eps=self.eps)
         x = x * (1 + scale) + shift
         return x
