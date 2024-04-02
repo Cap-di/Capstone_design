@@ -20,35 +20,33 @@ from diffusers.utils.torch_utils import maybe_allow_in_graph
 from diffusers.models.activations import get_activation
 from diffusers.models.attention_processor import Attention
 from diffusers.models.embeddings import CombinedTimestepLabelEmbeddings
+
 from dataclasses import dataclass
 from tgs.utils.base import BaseModule
 from tgs.utils.typing import *
 
 
 class MemoryEfficientAttentionMixin:
-    def enable_xformers_memory_efficient_attention(
+    def enable_xformers_memory_efficient_attention(         # xFormers의 메모리 효율적인 어텐션을 활성화하는 메서드
         self, attention_op: Optional[Callable] = None
     ):
         r"""
-        Enable memory efficient attention from [xFormers](https://facebookresearch.github.io/xformers/). When this
-        option is enabled, you should observe lower GPU memory usage and a potential speed up during inference. Speed
-        up during training is not guaranteed.
-
+        [xFormers](https://facebookresearch.github.io/xformers/)에서 메모리 효율적인 어텐션을 활성화합니다. 
+        이 옵션을 활성화하면 GPU 메모리 사용량이 줄어들고 추론 중에 속도 향상이 가능합니다. 훈련 중의 속도 향상은 보장되지 않습니다.
+                    
         <Tip warning={true}>
 
-        ⚠️ When memory efficient attention and sliced attention are both enabled, memory efficient attention takes
-        precedent.
+        ⚠️ 메모리 효율적인 어텐션과 슬라이스 어텐션이 모두 활성화된 경우, 메모리 효율적인 어텐션이 우선합니다.
 
         </Tip>
 
         Parameters:
             attention_op (`Callable`, *optional*):
-                Override the default `None` operator for use as `op` argument to the
-                [`memory_efficient_attention()`](https://facebookresearch.github.io/xformers/components/ops.html#xformers.ops.memory_efficient_attention)
-                function of xFormers.
+                xFormers의 
+                [`memory_efficient_attention()`](https://facebookresearch.github.io/xformers/components/ops.html#xformers.ops.memory_efficient_attention) 
+                함수의 `op` 인자로 사용할 기본 `None` 연산자를 재정의합니다.
 
         Examples:
-
         ```py
         >>> import torch
         >>> from diffusers import DiffusionPipeline
@@ -57,27 +55,34 @@ class MemoryEfficientAttentionMixin:
         >>> pipe = DiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1", torch_dtype=torch.float16)
         >>> pipe = pipe.to("cuda")
         >>> pipe.enable_xformers_memory_efficient_attention(attention_op=MemoryEfficientAttentionFlashAttentionOp)
-        >>> # Workaround for not accepting attention shape using VAE for Flash Attention
+        >>> # Flash Attention을 사용하는 VAE에서 어텐션 형태를 받아들이지 않는 문제에 대한 해결책
         >>> pipe.vae.enable_xformers_memory_efficient_attention(attention_op=None)
         ```
         """
-        self.set_use_memory_efficient_attention_xformers(True, attention_op)
+        self.set_use_memory_efficient_attention_xformers(True, attention_op)    # 메모리 효율적인 어텐션을 활성화
 
     def disable_xformers_memory_efficient_attention(self):
-        """
-        Disable memory efficient attention from [xFormers](https://facebookresearch.github.io/xformers/).
+        r"""
+        [xFormers](https://facebookresearch.github.io/xformers/) 의 메모리 효율적인 어텐션을 비활성화합니다.
         """
         self.set_use_memory_efficient_attention_xformers(False)
 
     def set_use_memory_efficient_attention_xformers(
         self, valid: bool, attention_op: Optional[Callable] = None
     ) -> None:
-        # Recursively walk through all the children.
-        # Any children which exposes the set_use_memory_efficient_attention_xformers method
-        # gets the message
+        # 메모리 효율적인 어텐션 변형기 사용 여부를 설정.
+        # Parameters:
+        # valid (bool): 메모리 효율적인 어텐션 변형기 사용 여부를 나타내는 불리언 값.
+        # attention_op (Optional[Callable]): 선택적 매개변수로, 메모리 효율적인 어텐션 연산을 수행하는 함수. 기본값은 None.
+        # Returns: None
+
+        # torch.nn.Module 클래스를 상속받는 모든 자식 모듈에 대해 재귀적으로 탐색.
+        # set_use_memory_efficient_attention_xformers 메서드를 제공하는 자식 모듈은 메시지를 받습니다.
+        # 메소드를 가지고 있는지 확인. 만약 해당 메소드를 가지고 있다면, 그 메소드를 호출하여 메모리 효율적인 어텐션를 설정하거나 해제
         def fn_recursive_set_mem_eff(module: torch.nn.Module):
             if hasattr(module, "set_use_memory_efficient_attention_xformers"):
                 module.set_use_memory_efficient_attention_xformers(valid, attention_op)
+
             for child in module.children():
                 fn_recursive_set_mem_eff(child)
 
@@ -86,48 +91,56 @@ class MemoryEfficientAttentionMixin:
                 fn_recursive_set_mem_eff(module)
 
 
+# Transformer 모델에서 사용되는 게이트가 있는 self-attention 구현
 @maybe_allow_in_graph
 class GatedSelfAttentionDense(nn.Module):
     r"""
-    A gated self-attention dense layer that combines visual features and object features.
+    visual 특징과 object 특징을 결합하는 게이트된 self-attention dense layer입니다.
 
-    Parameters:
-        query_dim (`int`): The number of channels in the query.
-        context_dim (`int`): The number of channels in the context.
-        n_heads (`int`): The number of heads to use for attention.
-        d_head (`int`): The number of channels in each head.
+    매개변수:
+        query_dim (`int`): query의 채널 수입니다.
+        context_dim (`int`): context의 채널 수입니다.
+        n_heads (`int`): attention에 사용할 head의 수입니다.
+        d_head (`int`): 각 head의 채널 수입니다.
     """
-    def __init__(self, query_dim: int, context_dim: int, n_heads: int, d_head: int):
+
+    def __init__(self, query_dim: int, context_dim: int, n_heads: int, d_head: int):            # Transformer 모델의 초기화 메서드.
         super().__init__()
 
-        # we need a linear projection since we need cat visual feature and obj feature
-        self.linear = nn.Linear(context_dim, query_dim)
+        # visual feature와 obj feature를 결합하기 위해 linear projection이 필요합니다.
+        self.linear = nn.Linear(context_dim, query_dim)                                     # PyTorch의 레이어로, 선형 변환 수행.
 
-        self.attn = Attention(query_dim=query_dim, heads=n_heads, dim_head=d_head)
-        self.ff = FeedForward(query_dim, activation_fn="geglu")
+        self.attn = Attention(query_dim=query_dim, heads=n_heads, dim_head=d_head)          # Attention
+        self.ff = FeedForward(query_dim, activation_fn="geglu")                             # FeedForward
 
-        self.norm1 = nn.LayerNorm(query_dim)
+        self.norm1 = nn.LayerNorm(query_dim)                                                # 정규화
         self.norm2 = nn.LayerNorm(query_dim)
 
-        self.register_parameter("alpha_attn", nn.Parameter(torch.tensor(0.0)))
-        self.register_parameter("alpha_dense", nn.Parameter(torch.tensor(0.0)))
+        self.register_parameter("alpha_attn", nn.Parameter(torch.tensor(0.0)))              # 게이트 메커니즘에서 사용되는 파라미터
+        self.register_parameter("alpha_dense", nn.Parameter(torch.tensor(0.0)))             # 게이트 메커니즘에서 사용되는 파라미터
 
-        self.enabled = True
-
+        self.enabled = True                                                                 # 게이트가 활성화되어 있는지 여부를 나타내는 변수
 
     def forward(self, x: torch.Tensor, objs: torch.Tensor) -> torch.Tensor:
-        if not self.enabled:
+        # 입력으로 주어진 x와 objs를 사용하여 forward 연산을 수행.
+        #     매개변수:
+        #         x (`torch.Tensor`): 입력 텐서.
+        #         objs (`torch.Tensor`): 객체 텐서.
+        #     반환값:
+        #         `torch.Tensor`: forward 연산의 결과인 텐서.
+            
+        if not self.enabled:                                                                # 게이트가 비활성화되어 있는 경우, x를 반환.
             return x
 
-        n_visual = x.shape[1]
-        objs = self.linear(objs)
+        n_visual = x.shape[1]                                                               # x의 shape[1]을 n_visual로 저장.
+        objs = self.linear(objs)                                                            # objs에 대해 linear projection을 수행.
 
         x = (
             x
-            + self.alpha_attn.tanh()
-            * self.attn(self.norm1(torch.cat([x, objs], dim=1)))[:, :n_visual, :]
+            + self.alpha_attn.tanh()                                                        # 게이트 메커니즘을 적용하여 x에 대한 attention을 계산.
+            * self.attn(self.norm1(torch.cat([x, objs], dim=1)))[:, :n_visual, :]           # visual과 obj를 결합하여 attention을 계산.
         )
-        x = x + self.alpha_dense.tanh() * self.ff(self.norm2(x))
+        x = x + self.alpha_dense.tanh() * self.ff(self.norm2(x))                            # 게이트 메커니즘을 적용하여 x에 대한 feed-forward를 계산.
 
         return x
 
@@ -566,6 +579,7 @@ class AdaLayerNormContinuous(nn.Module):
     """
 
     def __init__(self, embedding_dim: int, condition_dim: int):
+
         # condition_dim은 조건부 차원으로 긴 시퀀스의 데이터를 다룰 때 조건부로 세분화할 수 있다
         super().__init__()
         self.silu = nn.SiLU()
@@ -574,6 +588,7 @@ class AdaLayerNormContinuous(nn.Module):
         self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
+
         # 조건부 차원의 데이터를 선형모델에 넣고 activation함수를 적용하고 선형모델에 넣어 scale과 shift를 얻는다
         emb = self.linear2(self.silu(self.linear1(condition)))
         scale, shift = torch.chunk(emb, 2, dim=1)
@@ -583,6 +598,7 @@ class AdaLayerNormContinuous(nn.Module):
 
 class Modulation(nn.Module):
     def __init__(self, embedding_dim: int, condition_dim: int, zero_init: bool = False, single_layer: bool = False):
+
         # 출력 텐서를 입력 조건 텐서에 맞는 형태로 변조해주는 클레스
         super().__init__()
         self.silu = nn.SiLU()
@@ -592,6 +608,7 @@ class Modulation(nn.Module):
         # 입력 조건 텐서에 맞게 선형 모델 적용
         else:
             self.linear1 = nn.Linear(condition_dim, condition_dim)
+
         self.linear2 = nn.Linear(condition_dim, embedding_dim * 2)
 
         # Only zero init the last linear layer
