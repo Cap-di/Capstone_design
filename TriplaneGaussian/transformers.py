@@ -82,6 +82,7 @@ class MemoryEfficientAttentionMixin:
         # torch.nn.Module 클래스를 상속받는 모든 자식 모듈에 대해 재귀적으로 탐색.
         # set_use_memory_efficient_attention_xformers 메서드를 제공하는 자식 모듈은 메시지를 받습니다.
         # 메소드를 가지고 있는지 확인. 만약 해당 메소드를 가지고 있다면, 그 메소드를 호출하여 메모리 효율적인 어텐션를 설정하거나 해제
+        
         def fn_recursive_set_mem_eff(module: torch.nn.Module):
             if hasattr(module, "set_use_memory_efficient_attention_xformers"):
                 module.set_use_memory_efficient_attention_xformers(valid, attention_op)
@@ -93,11 +94,12 @@ class MemoryEfficientAttentionMixin:
             if isinstance(module, torch.nn.Module):
                 fn_recursive_set_mem_eff(module)
 
+
 ## 이 class가 사용된 모든 모델의 child모듈에 효율적인 attention을 적용 
 ## attention은 딥러닝 모델에서 주어진 입력 시퀀스의 각 요소가 다른 요소들과 어떻게 관련되는지를 나타내는 메커니즘
 # Transformer 모델에서 사용되는 게이트가 있는 self-attention 구현
 @maybe_allow_in_graph
-class GatedSelfAttentionDense(nn.Module):
+class GatedSelfAttentionDense(nn.Module):                                           # 시각 특징과 객체 특징을 결합하는 게이트된 셀프 어텐션 덴스 레이어를 정의
   ## 일반적인 어텐션 쿼리, 키, 값 + 게이트라는 개념을 추가 -> 정보의 흐름을 제어?
     r"""
     visual 특징과 object 특징을 결합하는 게이트된 self-attention dense layer입니다.
@@ -184,8 +186,8 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
 
     def __init__(
         self,
-        dim: int,
-        num_attention_heads: int,
+        dim: int,  # 트랜스포머의 인코더와 디코더에서의 정해진 입력과 출력의 크기
+        num_attention_heads: int,  # 멀티헤드 어텐션 모델의 헤드 수
         attention_head_dim: int,
         dropout=0.0,
         cross_attention_dim: Optional[int] = None,
@@ -318,7 +320,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         class_labels: Optional[torch.LongTensor] = None,
     ) -> torch.FloatTensor:
         # Notice that normalization is always applied before the real computation in the following blocks.
-        # 0. Self-Attention
+        # 0. Self-Attention  norm_hidden_states 정의
         # 셀프 어텐션 은닉 상태에 대한 정규화 선택적 수행
         if self.use_ada_layer_norm:
             norm_hidden_states = self.norm1(hidden_states, timestep)
@@ -331,7 +333,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         else:
             norm_hidden_states = self.norm1(hidden_states)
 
-        # 1. Retrieve lora scale.
+        # 1. Retrieve lora scale.     #  scale 하기
         # lora_scale 초기화
         lora_scale = (
             cross_attention_kwargs.get("scale", 1.0)
@@ -421,7 +423,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         return hidden_states
 
 
-class FeedForward(nn.Module):   ## 입력데이터가 선형변환을 통해 새로운 공간에 매핑, 활성화 함수를 통과해 결과 출력
+class FeedForward(nn.Module):   # 피드 포워드 레이어를 정의. 입력데이터가 선형변환을 통해 새로운 공간에 매핑, 활성화 함수를 통과해 결과 출력
     r"""
     A feed-forward layer.
 
@@ -534,7 +536,7 @@ class GEGLU(nn.Module): ## gated linear unit : 입력을 두 부분으로 나눠
         return hidden_states * self.gelu(gate)
 
 
-class ApproximateGELU(nn.Module):
+class ApproximateGELU(nn.Module):   # 활성화 함수를 정의
     r"""
     The approximate form of Gaussian Error Linear Unit (GELU). For more details, see section 2:
     https://arxiv.org/abs/1606.08415.
@@ -553,7 +555,7 @@ class ApproximateGELU(nn.Module):
         return x * torch.sigmoid(1.702 * x)
 
 
-class AdaLayerNorm(nn.Module):
+class AdaLayerNorm(nn.Module):   # 시간 단계 임베딩을 포함하는 정규화 레이어를 정의
     r"""
     Norm layer modified to incorporate timestep embeddings.
 
@@ -641,6 +643,7 @@ class Modulation(nn.Module):
 class AdaLayerNormZero(nn.Module):
     r"""
     Norm layer adaptive layer norm zero (adaLN-Zero).
+    
     Parameters:
         embedding_dim (`int`): The size of each embedding vector.
         num_embeddings (`int`): The size of the dictionary of embeddings.
@@ -703,6 +706,7 @@ class AdaGroupNorm(nn.Module):
             self.act = None
         else:
             self.act = get_activation(act_fn)
+            
         self.linear = nn.Linear(embedding_dim, out_dim * 2)
 
     def forward(self, x: torch.Tensor, emb: torch.Tensor) -> torch.Tensor:
@@ -717,6 +721,10 @@ class AdaGroupNorm(nn.Module):
         return x
 
 class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
+    #  1D(1차원 순차 데이터) Transformer 모델을 정의
+    #  입력 레이어, Transformer 블록, 출력 레이어로 구성되어 있습니다.
+    #  모델 구성 매개변수를 설정할 수 있습니다.
+
     """
     A 1D Transformer model for sequence data.
     ## 시퀀스 데이터를 위한 1D 변환기 모델
@@ -749,39 +757,48 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
             `TransformerBlocks` 어텐션에 바이어스 매개변수가 포함되어야 하는지 구성
     """
 
-    @dataclass
-    class Config(BaseModule.Config):
-        num_attention_heads: int = 16
-        attention_head_dim: int = 88
-        in_channels: Optional[int] = None
-        out_channels: Optional[int] = None
-        num_layers: int = 1
-        dropout: float = 0.0
-        norm_num_groups: int = 32
-        cross_attention_dim: Optional[int] = None
-        attention_bias: bool = False
-        activation_fn: str = "geglu"
-        num_embeds_ada_norm: Optional[int] = None
-        cond_dim_ada_norm_continuous: Optional[int] = None
-        only_cross_attention: bool = False
-        double_self_attention: bool = False
+    @dataclass   # 데이터를 저장하는 클래스 사용
+    class Config(BaseModule.Config):   # 매개변수 정의
+        num_attention_heads: int = 16  # 멀티헤드 어텐션에서 사용할 어텐션 헤드의 수 지정
+        attention_head_dim: int = 88 # 각 어텐션 헤드의 차원을 지정
+        in_channels: Optional[int] = None  # 입력 데이터의 채널 수를 지정
+        out_channels: Optional[int] = None  # 출력 데이터의 채널 수를 지정
+        num_layers: int = 1   # Transformer 블록의 개수를 지정
+        dropout: float = 0.0  # 드롭아웃(Dropout) 확률을 지정
+        norm_num_groups: int = 32  # GroupNorm 레이어에서 사용할 그룹의 수를 지정
+        cross_attention_dim: Optional[int] = None   # 크로스 어텐션에 사용될 인코더 hidden state의 차원을 지정
+        attention_bias: bool = False  # 어텐션 레이어에 바이어스(bias) 매개변수를 추가할지 여부
+        activation_fn: str = "geglu"  # 피드 포워드 레이어에서 사용할 활성화 함수를 지정
+        num_embeds_ada_norm: Optional[int] = None  # 훈련 중 사용된 디노이징 단계 수를 지정 => AdaLayerNorm 레이어에서 사용
+        cond_dim_ada_norm_continuous: Optional[int] = None  # AdaLayerNormContinuous 레이어에서 사용될 conditional input의 차원을 지정
+        only_cross_attention: bool = False  # 크로스 어텐션 레이어만 사용할지 여부
+        double_self_attention: bool = False  # 두 개의 셀프 어텐션 레이어를 사용할지 여부
         upcast_attention: bool = False
-        norm_type: str = "layer_norm"
+        norm_type: str = "layer_norm"  # 용할 정규화 레이어의 유형을 지정
         norm_elementwise_affine: bool = True
-        attention_type: str = "default"
-        enable_memory_efficient_attention: bool = False
-        gradient_checkpointing: bool = False
+        attention_type: str = "default"  # 사용할 어텐션 유형을 지정. 옵션은 "default", "gated", "gated-text-image"
+        enable_memory_efficient_attention: bool = False  # 메모리 효율적인 어텐션 기법을 사용할지 여부를 지
+        gradient_checkpointing: bool = False  # 그래디언트 체크포인팅을 사용하여 메모리 사용량을 줄일지 여부를 지정
+
 
     cfg: Config
 
     def configure(self) -> None:
-        super().configure()
+        super().configure()   # BaseModule 클래스의 configure 메서드를 호출
 
-        self.num_attention_heads = self.cfg.num_attention_heads
-        self.attention_head_dim = self.cfg.attention_head_dim
-        inner_dim = self.num_attention_heads * self.attention_head_dim
+        self.num_attention_heads = self.cfg.num_attention_heads   # attention head 개수 설정
+        self.attention_head_dim = self.cfg.attention_head_dim     # attention head dim 설정
+        inner_dim = self.num_attention_heads * self.attention_head_dim  # inner_dim을 계산
 
-        linear_cls = nn.Linear
+        linear_cls = nn.Linear   # nn.Linear 객체 생성(from torch 라이브러리의 nn 클래스)
+                                  # PyTorch의 선형 레이어(Linear Layer)를 정의하는 클래스
+        # 선형 레이어는 입력 데이터에 가중치 행렬을 곱하고 편향(bias)을 더하는 간단한 행렬 곱셈 연산을 수행
+        # 이는 딥러닝 모델에서 가장 기본적인 레이어 중 하나
+        # class nn.Linear(in_features, out_features, bias=True)
+
+
+        # 정규화 유형이 layer_norm인데 num_embeds_ada_norm이나 cond_dim_ada_norm_continuous가
+        # 설정되어 있으면 ValueError
 
         if self.cfg.norm_type == "layer_norm" and (
             self.cfg.num_embeds_ada_norm is not None
@@ -789,19 +806,20 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
         ):
             raise ValueError("Incorrect norm_type.")
 
-        # 2. Define input layers
-        self.in_channels = self.cfg.in_channels
+        # 2. Define input layers  # 인풋 레이어 정의
+        self.in_channels = self.cfg.in_channels  # 채널 개수 설정
 
-        self.norm = torch.nn.GroupNorm(
+        self.norm = torch.nn.GroupNorm(    # GroupNorm 레이어를 norm에 할당
+
             num_groups=self.cfg.norm_num_groups,
             num_channels=self.cfg.in_channels,
             eps=1e-6,
             affine=True,
         )
-        self.proj_in = linear_cls(self.cfg.in_channels, inner_dim)
+        self.proj_in = linear_cls(self.cfg.in_channels, inner_dim)   # proj_in 레이어를 초기화
 
-        # 3. Define transformers blocks
-        self.transformer_blocks = nn.ModuleList(
+        # 3. Define transformers blocks   트랜스포머 블록 정의
+        self.transformer_blocks = nn.ModuleList(   # transformer_blocks에 BasicTransformerBlock 저장
             [
                 BasicTransformerBlock(
                     inner_dim,
@@ -824,30 +842,36 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
             ]
         )
 
-        # 4. Define output layers
-        self.out_channels = (
+        # 4. Define output layers    # 아웃풋 레이어 정의
+        self.out_channels = (    # out_channels를 설정, 지정되지 않았다면 in_channels와 동일하게
             self.cfg.in_channels
             if self.cfg.out_channels is None
             else self.cfg.out_channels
         )
 
-        self.proj_out = linear_cls(inner_dim, self.cfg.in_channels)
+        # proj_out 레이어를 초기화하여 inner_dim에서 in_channels 차원으로 프로젝션합니다.
+        self.proj_out = linear_cls(inner_dim, self.cfg.in_channels)  #
 
+        # gradient_checkpointing
         self.gradient_checkpointing = self.cfg.gradient_checkpointing
 
+        # 메모리 효율적 어텐션
         self.set_use_memory_efficient_attention_xformers(
             self.cfg.enable_memory_efficient_attention
         )
 
     def forward(
+        # 입력 텐서를 받아 인코더에 통과시키기 => 출력 생성
+        # 이 때 다양한 입력 및 조건부 텐서
+        # (encoder_hidden_states, timestep, modulation_cond, class_labels 등) 사용할 수 있음
         self,
         hidden_states: torch.Tensor,
-        encoder_hidden_states: Optional[torch.Tensor] = None,
-        timestep: Optional[torch.LongTensor] = None,
+        encoder_hidden_states: Optional[torch.Tensor] = None,  # 크로스 어텐션(Cross-Attention)에 사용될 인코더의 hidden states, 지정되지 않으면 셀프 어텐션(Self-Attention)이 사용됨
+        timestep: Optional[torch.LongTensor] = None,    # AdaLayerNorm에서 임베딩으로 사용
         modulation_cond: Optional[torch.FloatTensor] = None,
-        class_labels: Optional[torch.LongTensor] = None,
-        cross_attention_kwargs: Dict[str, Any] = None,
-        attention_mask: Optional[torch.Tensor] = None,
+        class_labels: Optional[torch.LongTensor] = None,  # AdaLayerZeroNorm에서 임베딩으로 사용
+        cross_attention_kwargs: Dict[str, Any] = None,  # 셀프 어텐션에 적용될 마스크 텐서
+        attention_mask: Optional[torch.Tensor] = None,  # 크로스 어텐션에 적용될 마스크 텐서
         encoder_attention_mask: Optional[torch.Tensor] = None,
     ):
         """
@@ -906,6 +930,12 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
             attention_mask = (1 - attention_mask.to(hidden_states.dtype)) * -10000.0
             attention_mask = attention_mask.unsqueeze(1)
 
+        # attention_mask와 encoder_attention_mask가 2차원 텐서인 경우,
+        # 차원을 확장하고 마스크 값을 바이어스로 변환
+        # 마스크 값을 바이어스(bias) 값으로 변환
+        # attention_mask의 값이 0이면 -10000.0으로, 1이면 0으로 변환
+        # 그리고 새로운 차원을 추가하여 브로드캐스팅을 용이
+
         # convert encoder_attention_mask to a bias the same way we do for attention_mask
         if encoder_attention_mask is not None and encoder_attention_mask.ndim == 2:
             encoder_attention_mask = (
@@ -913,19 +943,25 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
             ) * -10000.0
             encoder_attention_mask = encoder_attention_mask.unsqueeze(1)
 
+        # 입력 레이어
         # 1. Input
-        batch, _, seq_len = hidden_states.shape
-        residual = hidden_states
+        batch, _, seq_len = hidden_states.shape  # hidden_states의 배치 크기와 시퀀스 길이를 추출
+        residual = hidden_states  # 잔차 연결
 
-        hidden_states = self.norm(hidden_states)
-        inner_dim = hidden_states.shape[1]
-        hidden_states = hidden_states.permute(0, 2, 1).reshape(
+        hidden_states = self.norm(hidden_states)  # hidden_states를 정규화하고
+        inner_dim = hidden_states.shape[1]   # 채널 수 할당, hidden_states 텐서의 채널 수(channel dimension)를 inner_dim 변수에 할당
+        hidden_states = hidden_states.permute(0, 2, 1).reshape(   # 차원을 변경하여
             batch, seq_len, inner_dim
         )
         hidden_states = self.proj_in(hidden_states)
+        # Transformer 블록의 입력 차원에 맞게
+        # proj_in 레이어를 통과시키기.
 
         # 2. Blocks
+        # transformer_blocks에 있는 각 BasicTransformerBlock을 순차적으로 거친다
         for block in self.transformer_blocks:
+            # 훈련 중이고 gradient_checkpointing이 활성화되어 있다면,
+            # 그래디언트 체크포인팅을 사용하여 메모리 사용량을 줄임
             if self.training and self.gradient_checkpointing:
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     block,
@@ -939,7 +975,7 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
                     class_labels,
                     use_reentrant=False,
                 )
-            else:
+            else:  # 그렇지 않다면 일반적으로 BasicTransformerBlock을 통과
                 hidden_states = block(
                     hidden_states,
                     attention_mask=attention_mask,
@@ -952,13 +988,14 @@ class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
                 )
 
         # 3. Output
-        hidden_states = self.proj_out(hidden_states)
-        hidden_states = (
+        # Transformer 블록의 출력 차원을 원하는 출력 차원으로
+        hidden_states = self.proj_out(hidden_states)   # hidden_states를 proj_out 레이어를 통과시켜,
+        hidden_states = (                              # 원래 차원으로 변환.
             hidden_states.reshape(batch, seq_len, inner_dim)
             .permute(0, 2, 1)
             .contiguous()
         )
 
-        output = hidden_states + residual
+        output = hidden_states + residual   # 잔차 연결을 적용하여 최종 출력 output을 계산
 
-        return output
+        return output   # output을 반환
