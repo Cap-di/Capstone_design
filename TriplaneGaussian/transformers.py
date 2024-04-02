@@ -26,6 +26,7 @@ from tgs.utils.base import BaseModule
 from tgs.utils.typing import *
 
 
+## xFormers라이브러리의 memory_efficient_attention() 함수를 이용해 메모리 효율적인 어텐션을 활성화하거나 비활성화 하는 기능 제공
 class MemoryEfficientAttentionMixin:
     def enable_xformers_memory_efficient_attention(         # xFormers의 메모리 효율적인 어텐션을 활성화하는 메서드
         self, attention_op: Optional[Callable] = None
@@ -55,6 +56,7 @@ class MemoryEfficientAttentionMixin:
         >>> pipe = DiffusionPipeline.from_pretrained("stabilityai/stable-diffusion-2-1", torch_dtype=torch.float16)
         >>> pipe = pipe.to("cuda")
         >>> pipe.enable_xformers_memory_efficient_attention(attention_op=MemoryEfficientAttentionFlashAttentionOp)
+        ## 메모리 어텐션 비활성화
         >>> # Flash Attention을 사용하는 VAE에서 어텐션 형태를 받아들이지 않는 문제에 대한 해결책
         >>> pipe.vae.enable_xformers_memory_efficient_attention(attention_op=None)
         ```
@@ -66,6 +68,7 @@ class MemoryEfficientAttentionMixin:
         [xFormers](https://facebookresearch.github.io/xformers/) 의 메모리 효율적인 어텐션을 비활성화합니다.
         """
         self.set_use_memory_efficient_attention_xformers(False)
+
 
     def set_use_memory_efficient_attention_xformers(
         self, valid: bool, attention_op: Optional[Callable] = None
@@ -90,10 +93,12 @@ class MemoryEfficientAttentionMixin:
             if isinstance(module, torch.nn.Module):
                 fn_recursive_set_mem_eff(module)
 
-
+## 이 class가 사용된 모든 모델의 child모듈에 효율적인 attention을 적용 
+## attention은 딥러닝 모델에서 주어진 입력 시퀀스의 각 요소가 다른 요소들과 어떻게 관련되는지를 나타내는 메커니즘
 # Transformer 모델에서 사용되는 게이트가 있는 self-attention 구현
 @maybe_allow_in_graph
 class GatedSelfAttentionDense(nn.Module):
+  ## 일반적인 어텐션 쿼리, 키, 값 + 게이트라는 개념을 추가 -> 정보의 흐름을 제어?
     r"""
     visual 특징과 object 특징을 결합하는 게이트된 self-attention dense layer입니다.
 
@@ -108,16 +113,16 @@ class GatedSelfAttentionDense(nn.Module):
         super().__init__()
 
         # visual feature와 obj feature를 결합하기 위해 linear projection이 필요합니다.
-        self.linear = nn.Linear(context_dim, query_dim)                                     # PyTorch의 레이어로, 선형 변환 수행.
+        self.linear = nn.Linear(context_dim, query_dim)                                     # PyTorch의 레이어로, 객체 차원 -> 쿼리 차원으로 선형변환
 
-        self.attn = Attention(query_dim=query_dim, heads=n_heads, dim_head=d_head)          # Attention
-        self.ff = FeedForward(query_dim, activation_fn="geglu")                             # FeedForward
+        self.attn = Attention(query_dim=query_dim, heads=n_heads, dim_head=d_head)          # 쿼리 차원에 대한 어텐션 메커니즘 구현, 여러 헤드와 헤드당 차원 지정
+        self.ff = FeedForward(query_dim, activation_fn="geglu")                             # FeedForward 연산 수행, 지정된 함수 활성화
 
-        self.norm1 = nn.LayerNorm(query_dim)                                                # 정규화
-        self.norm2 = nn.LayerNorm(query_dim)
+        self.norm1 = nn.LayerNorm(query_dim)                                                # 정규화 레이어 생성 : 입력을 정규화 하여 레이어 생성
+        self.norm2 = nn.LayerNorm(query_dim)                                                # 각 시퀀스마다 차원이 다를 수 있어 이를 정규화
 
         self.register_parameter("alpha_attn", nn.Parameter(torch.tensor(0.0)))              # 게이트 메커니즘에서 사용되는 파라미터
-        self.register_parameter("alpha_dense", nn.Parameter(torch.tensor(0.0)))             # 게이트 메커니즘에서 사용되는 파라미터
+        self.register_parameter("alpha_dense", nn.Parameter(torch.tensor(0.0)))             # 레이어의 가중치/ FeedForward연산에 사용 -> 모델이 입력 데이터를 효과적으로 사용할 수 있도록
 
         self.enabled = True                                                                 # 게이트가 활성화되어 있는지 여부를 나타내는 변수
 
@@ -132,14 +137,14 @@ class GatedSelfAttentionDense(nn.Module):
         if not self.enabled:                                                                # 게이트가 비활성화되어 있는 경우, x를 반환.
             return x
 
-        n_visual = x.shape[1]                                                               # x의 shape[1]을 n_visual로 저장.
+        n_visual = x.shape[1]                                                               # x의 shape[1]을 n_visual, 차원-시각적 정보갯수 로 저장.
         objs = self.linear(objs)                                                            # objs에 대해 linear projection을 수행.
 
         x = (
             x
             + self.alpha_attn.tanh()                                                        # 게이트 메커니즘을 적용하여 x에 대한 attention을 계산.
             * self.attn(self.norm1(torch.cat([x, objs], dim=1)))[:, :n_visual, :]           # visual과 obj를 결합하여 attention을 계산.
-        )
+        )                                                                                   # 어텐션 메커니즘에 대한 연산 수행, x+objs(선형변환된 객체)->어텐션 메커니즘 가중치를 적용해 연산 수행, 결과=>x로
         x = x + self.alpha_dense.tanh() * self.ff(self.norm2(x))                            # 게이트 메커니즘을 적용하여 x에 대한 feed-forward를 계산.
 
         return x
@@ -408,17 +413,18 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         return hidden_states
 
 
-class FeedForward(nn.Module):
+
+class FeedForward(nn.Module):   ## 입력데이터가 선형변환을 통해 새로운 공간에 매핑, 활성화 함수를 통과해 결과 출력
     r"""
     A feed-forward layer.
 
     Parameters:
-        dim (`int`): The number of channels in the input.
-        dim_out (`int`, *optional*): The number of channels in the output. If not given, defaults to `dim`.
-        mult (`int`, *optional*, defaults to 4): The multiplier to use for the hidden dimension.
-        dropout (`float`, *optional*, defaults to 0.0): The dropout probability to use.
-        activation_fn (`str`, *optional*, defaults to `"geglu"`): Activation function to be used in feed-forward.
-        final_dropout (`bool` *optional*, defaults to False): Apply a final dropout.
+        dim (`int`): The number of channels in the input. ## 입력의 채널 수
+        dim_out (`int`, *optional*): The number of channels in the output. If not given, defaults to `dim`. ## 출력의 채널 수
+        mult (`int`, *optional*, defaults to 4): The multiplier to use for the hidden dimension. ## hidden layer의 크기 결정
+        dropout (`float`, *optional*, defaults to 0.0): The dropout probability to use. ## 
+        activation_fn (`str`, *optional*, defaults to `"geglu"`): Activation function to be used in feed-forward. ## 활성화 함수 선택, 기본값:geglu
+        final_dropout (`bool` *optional*, defaults to False): Apply a final dropout. ## dropout 결정 여부
     """
 
     def __init__(
@@ -434,6 +440,7 @@ class FeedForward(nn.Module):
         inner_dim = int(dim * mult)
         dim_out = dim_out if dim_out is not None else dim
         linear_cls = nn.Linear
+        ## acivation_fn 을 사용해 활성화 함수를 선택할 수 있도록
 
         if activation_fn == "gelu":
             act_fn = GELU(dim, inner_dim)
@@ -461,9 +468,11 @@ class FeedForward(nn.Module):
         return hidden_states
 
 
-class GELU(nn.Module):
+
+class GELU(nn.Module):  ## 비선형 활성화 함수 : 입력값을 반환해 다음 층으로 전달
     r"""
     GELU activation function with tanh approximation support with `approximate="tanh"`.
+    ## `appimate="tanh"를 사용하여 tanh 근사를 지원하는 GELU 활성화 함수
 
     Parameters:
         dim_in (`int`): The number of channels in the input.
@@ -473,25 +482,26 @@ class GELU(nn.Module):
 
     def __init__(self, dim_in: int, dim_out: int, approximate: str = "none"):
         super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out)
-        self.approximate = approximate
-
+        self.proj = nn.Linear(dim_in, dim_out) ## 선형 변환 레이어
+        self.approximate = approximate  ## 기본값 = none/ tanh를 사용시 tanh근사값 사용
+                                        ## GELU 함수는 신경망에서 활성화 함수로 사용, 입력값에 비선형을 추가, 근사화를 통해 메모리 절약 but 정확도가 떨어질 수 있음
     def gelu(self, gate: torch.Tensor) -> torch.Tensor:
-        if gate.device.type != "mps":
-            return F.gelu(gate, approximate=self.approximate)
+        if gate.device.type != "mps":   ## 현재 device type이 mps가 아니라면 
+            return F.gelu(gate, approximate=self.approximate)   ## pytorch의 F.gelu함수 호출
         # mps: gelu is not implemented for float16
-        return F.gelu(gate.to(dtype=torch.float32), approximate=self.approximate).to(
-            dtype=gate.dtype
+        return F.gelu(gate.to(dtype=torch.float32), approximate=self.approximate).to(   
+            dtype=gate.dtype    ## 현재 device type이 mps이면 float32로 변환 후 GELU함수 적용
         )
 
     def forward(self, hidden_states):
         hidden_states = self.proj(hidden_states)
         hidden_states = self.gelu(hidden_states)
         return hidden_states
+        ## hidden_states를 입력으로 받아 선형으로 변환  
 
-
-class GEGLU(nn.Module):
-    r"""
+class GEGLU(nn.Module): ## gated linear unit : 입력을 두 부분으로 나눠서 한쪽엔 sigmoid활성화 함수를 통해 0, 1사이의 값으로 변환 -> 원래의 입력값과 곱한다
+                        ## 이 과정으로 중요한 정보를 강조하거나 억제 / CNN등의 모델에서 입력과 출력의 차원을 맞추기 위해 ?????
+    r"""                
     A variant of the gated linear unit activation function from https://arxiv.org/abs/2002.05202.
 
     Parameters:
@@ -501,11 +511,12 @@ class GEGLU(nn.Module):
 
     def __init__(self, dim_in: int, dim_out: int):
         super().__init__()
-        linear_cls = nn.Linear
+        linear_cls = nn.Linear  ## 입려과 출력의 차원을 갖는 선형변환모듈생성
 
         self.proj = linear_cls(dim_in, dim_out * 2)
 
-    def gelu(self, gate: torch.Tensor) -> torch.Tensor:
+    ## gate에 대해 GELU 활성화함수 적용(입력gate : GELU함수에 전달되는 입력, 신경망의 이전 레이어에서 출력되는 값)
+    def gelu(self, gate: torch.Tensor) -> torch.Tensor: ## 입력값 * 표준정규분포(입력값)
         if gate.device.type != "mps":
             return F.gelu(gate)
         # mps: gelu is not implemented for float16
@@ -579,7 +590,6 @@ class AdaLayerNormContinuous(nn.Module):
     """
 
     def __init__(self, embedding_dim: int, condition_dim: int):
-
         # condition_dim은 조건부 차원으로 긴 시퀀스의 데이터를 다룰 때 조건부로 세분화할 수 있다
         super().__init__()
         self.silu = nn.SiLU()
@@ -588,7 +598,6 @@ class AdaLayerNormContinuous(nn.Module):
         self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False)
 
     def forward(self, x: torch.Tensor, condition: torch.Tensor) -> torch.Tensor:
-
         # 조건부 차원의 데이터를 선형모델에 넣고 activation함수를 적용하고 선형모델에 넣어 scale과 shift를 얻는다
         emb = self.linear2(self.silu(self.linear1(condition)))
         scale, shift = torch.chunk(emb, 2, dim=1)
@@ -598,7 +607,6 @@ class AdaLayerNormContinuous(nn.Module):
 
 class Modulation(nn.Module):
     def __init__(self, embedding_dim: int, condition_dim: int, zero_init: bool = False, single_layer: bool = False):
-
         # 출력 텐서를 입력 조건 텐서에 맞는 형태로 변조해주는 클레스
         super().__init__()
         self.silu = nn.SiLU()
@@ -705,24 +713,34 @@ class AdaGroupNorm(nn.Module):
 class Transformer1D(BaseModule, MemoryEfficientAttentionMixin):
     """
     A 1D Transformer model for sequence data.
-
+    ## 시퀀스 데이터를 위한 1D 변환기 모델
     Parameters:
         num_attention_heads (`int`, *optional*, defaults to 16): The number of heads to use for multi-head attention.
+        ## multi-head attention에 사용할 head의 수
         attention_head_dim (`int`, *optional*, defaults to 88): The number of channels in each head.
+        ## 각 head의 체널 수
         in_channels (`int`, *optional*):
             The number of channels in the input and output (specify if the input is **continuous**).
         num_layers (`int`, *optional*, defaults to 1): The number of layers of Transformer blocks to use.
+        ## 사용할 Transformer 블록의 레이어 수
         dropout (`float`, *optional*, defaults to 0.0): The dropout probability to use.
+        ## 사용할 dropout의 확률
         cross_attention_dim (`int`, *optional*): The number of `encoder_hidden_states` dimensions to use.
+        ## encoder_hidden_states 차원의 수
         activation_fn (`str`, *optional*, defaults to `"geglu"`): Activation function to use in feed-forward.
+        ## feed-forward에 사용할 활성화 함수
         num_embeds_ada_norm ( `int`, *optional*):
-            The number of diffusion steps used during training. Pass if at least one of the norm_layers is
+            The number of diffusion steps used during training.
+            Pass if at least one of the norm_layers is
             `AdaLayerNorm`. This is fixed during training since it is used to learn a number of embeddings that are
             added to the hidden states.
+            ## 훈련 중 사용되는 확산단계 수, norm_layers중 하나 이상이 다음과 같으면 통과 adalayernorm은 다수의 임베딩을 학습하는데 사용, 훈련중에 수정 
 
             During inference, you can denoise for up to but not more steps than `num_embeds_ada_norm`.
+            inference 중, `num_embeds_ada_norm`보다 최대 단계까지 노이즈를 제거할 수 있음
         attention_bias (`bool`, *optional*):
             Configure if the `TransformerBlocks` attention should contain a bias parameter.
+            `TransformerBlocks` 어텐션에 바이어스 매개변수가 포함되어야 하는지 구성
     """
 
     @dataclass
