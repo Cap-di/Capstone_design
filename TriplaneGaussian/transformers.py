@@ -201,9 +201,11 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         final_dropout: bool = False,
         attention_type: str = "default",
     ):
-        super().__init__()
+        # 초기화
+        super().__init__() 
+        # 크로스 어텐션 층 사용 여부
         self.only_cross_attention = only_cross_attention
-
+        # 확산단계수와 정규화층 유형에 따라 변수값 지정
         self.use_ada_layer_norm_zero = (
             num_embeds_ada_norm is not None
         ) and norm_type == "ada_norm_zero"
@@ -229,6 +231,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
 
         # Define 3 blocks. Each block has its own normalization layer.
         # 1. Self-Attn
+        # 위에서 결정된 변수값으로 첫 번째 정규화 층 결정(초기화)
         if self.use_ada_layer_norm:
             self.norm1 = AdaLayerNorm(dim, num_embeds_ada_norm)
         elif self.use_ada_layer_norm_continuous:
@@ -248,7 +251,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         )
 
         # 2. Cross-Attn
-        if cross_attention_dim is not None or double_self_attention:
+        if cross_attention_dim is not None or double_self_attention:    # 일때만 크로스어텐션을 초기화
             # We currently only use AdaLayerNormZero for self attention where there will only be one attention block.
             # I.e. the number of returned modulation chunks from AdaLayerZero would not make sense if returned during
             # the second cross attention block.
@@ -316,6 +319,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
     ) -> torch.FloatTensor:
         # Notice that normalization is always applied before the real computation in the following blocks.
         # 0. Self-Attention
+        # 셀프 어텐션 은닉 상태에 대한 정규화 선택적 수행
         if self.use_ada_layer_norm:
             norm_hidden_states = self.norm1(hidden_states, timestep)
         elif self.use_ada_layer_norm_continuous:
@@ -328,6 +332,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
             norm_hidden_states = self.norm1(hidden_states)
 
         # 1. Retrieve lora scale.
+        # lora_scale 초기화
         lora_scale = (
             cross_attention_kwargs.get("scale", 1.0)
             if cross_attention_kwargs is not None
@@ -353,19 +358,22 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         hidden_states = attn_output + hidden_states
 
         # 2.5 GLIGEN Control
+        # GLIGEN 처리(둘을 결합)
         if gligen_kwargs is not None:
             hidden_states = self.fuser(hidden_states, gligen_kwargs["objs"])
         # 2.5 ends
 
         # 3. Cross-Attention
         if self.attn2 is not None:
+            # 정규화 수행
             if self.use_ada_layer_norm:
                 norm_hidden_states = self.norm2(hidden_states, timestep)
             elif self.use_ada_layer_norm_continuous:
                 norm_hidden_states = self.norm2(hidden_states, modulation_cond)
             else:
                 norm_hidden_states = self.norm2(hidden_states)
-
+            
+            # 크로스 어텐션 계산
             attn_output = self.attn2(
                 norm_hidden_states,
                 encoder_hidden_states=encoder_hidden_states,
@@ -384,7 +392,7 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
             norm_hidden_states = (
                 norm_hidden_states * (1 + scale_mlp[:, None]) + shift_mlp[:, None]
             )
-
+        # Feed-Forward 계층 적용    _chunk_size가 지정되어 있다면, 메모리 절약을 위해 입력 텐서를 여러 청크로 나누어 계산합니다. 그렇지 않다면 전체 입력 텐서에 대해 한 번에 계산합니다.
         if self._chunk_size is not None:
             # "feed_forward_chunk_size" can be used to save memory
             if norm_hidden_states.shape[self._chunk_dim] % self._chunk_size != 0:
@@ -413,7 +421,6 @@ class BasicTransformerBlock(nn.Module, MemoryEfficientAttentionMixin):
         return hidden_states
 
 
-
 class FeedForward(nn.Module):   ## 입력데이터가 선형변환을 통해 새로운 공간에 매핑, 활성화 함수를 통과해 결과 출력
     r"""
     A feed-forward layer.
@@ -440,8 +447,8 @@ class FeedForward(nn.Module):   ## 입력데이터가 선형변환을 통해 새
         inner_dim = int(dim * mult)
         dim_out = dim_out if dim_out is not None else dim
         linear_cls = nn.Linear
+        
         ## acivation_fn 을 사용해 활성화 함수를 선택할 수 있도록
-
         if activation_fn == "gelu":
             act_fn = GELU(dim, inner_dim)
         if activation_fn == "gelu-approximate":
@@ -466,7 +473,6 @@ class FeedForward(nn.Module):   ## 입력데이터가 선형변환을 통해 새
         for module in self.net:
             hidden_states = module(hidden_states)
         return hidden_states
-
 
 
 class GELU(nn.Module):  ## 비선형 활성화 함수 : 입력값을 반환해 다음 층으로 전달
