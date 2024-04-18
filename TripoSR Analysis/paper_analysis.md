@@ -46,8 +46,9 @@ latent vectors 를 triplane-NeRF representation으로 변환([Efficient Geometry
     <dd>consists of a stack of multilayer perceptrons (MLPs). 공간상의 3D point의 밀도와 색 예측</dd>
 </dl>
 conditioning the image-to-triplane projection on camera parameters 대신에 모델이 훈련 및 추론 중에 카메라 매개변수를 "추측"하도록 함. 이는 추론할때 모델이 input wild한 input image에 강점을 가짐.<br>
-이는 정확한 카메라 정보 없이도 광범위한 실제 시나리오를 처리할 수 있는 보다 적응력 있고 탄력적인 모델을 개발하는 것을 목표.
-![](Table1.png)
+이는 정확한 카메라 정보 없이도 광범위한 실제 시나리오를 처리할 수 있는 보다 적응력 있고 탄력적인 모델을 개발하는 것을 목표. <br>
+
+![](./Table1.png)
 
 ### Data Improvement
 #### Data Curation
@@ -108,7 +109,8 @@ isosurfaces 에서 10K 점을 샘플링하여 Chamfer Distance(CD)와 F-score(FS
 
 ### Quantitative Comparisons
 TripoSR 모델의 성능을 피드포워드 기술을 사용하는 기존의 SOTA(STATE-OF-THE-ART) 기준선들과 비교
-[One-2-3-45](https://arxiv.org/abs/2306.16928), [TriplaneGaussian (TGS)](https://arxiv.org/abs/2312.09147), [ZeroShape](https://arxiv.org/abs/2312.14198), [OpenLRM](https://github.com/3DTopia/OpenLRM) 
+[One-2-3-45](https://arxiv.org/abs/2306.16928), [TriplaneGaussian (TGS)](https://arxiv.org/abs/2312.09147), [ZeroShape](https://arxiv.org/abs/2312.14198), [OpenLRM](https://github.com/3DTopia/OpenLRM) <br>
+
 ![](./Table2_3.png)
 
 ### Runtime
