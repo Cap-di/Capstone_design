@@ -109,7 +109,8 @@ isosurfaces 에서 10K 점을 샘플링하여 Chamfer Distance(CD)와 F-score(FS
 
 ### Quantitative Comparisons
 TripoSR 모델의 성능을 피드포워드 기술을 사용하는 기존의 SOTA(STATE-OF-THE-ART) 기준선들과 비교
-[One-2-3-45](https://arxiv.org/abs/2306.16928), [TriplaneGaussian (TGS)](https://arxiv.org/abs/2312.09147), [ZeroShape](https://arxiv.org/abs/2312.14198), [OpenLRM](https://github.com/3DTopia/OpenLRM) 
+[One-2-3-45](https://arxiv.org/abs/2306.16928), [TriplaneGaussian (TGS)](https://arxiv.org/abs/2312.09147), [ZeroShape](https://arxiv.org/abs/2312.14198), [OpenLRM](https://github.com/3DTopia/OpenLRM) <br>
+
 ![](./Table2_3.png)
 
 ### Runtime
