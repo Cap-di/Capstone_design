@@ -1,6 +1,9 @@
+# Sungchul
 .prettierignore
 .vscode
-.idea
 data
 cap
 TripoSR
+
+
+.idea
