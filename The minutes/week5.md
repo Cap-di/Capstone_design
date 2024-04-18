@@ -44,7 +44,7 @@ $$\sigma_{xy} = \frac{1}{M \cdot N} \sum_{i=1}^{M} \sum_{j=1}^{N} [x(i, j) - \mu
 > $l(x, y)$ : 밝기 유사도, $c(x, y)$ : 콘트라스트 유사도, $s(x, y)$ : 구조 유사도
 > $\mu_x, \mu_y$ : x, y의 평균, $\sigma_x, \sigma_y$ : x, y의 분산, $\sigma_{xy}$ : x, y의 공분산
 > $C_1$ : 밝기 유사도 상수, $C_2$ : 콘트라스트 유사도 상수, $C_3$ : 구조 유사도 상수
-> $C_1 = (0.01*L)^2, C_2 = (0.03*L)^2, C_3 = C_2/2$'
+> $C_1 = (0.01*L)^2, C_2 = (0.03*L)^2, C_3 = C_2/2$
 > L : 픽셀값의 최대값 (흑백 : 255, RGB : 2553, RGBA : 2554)
 
 #### LPIPS (Learned Perceptual Image Patch Similarity)
