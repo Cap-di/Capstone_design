@@ -1,9 +1,12 @@
 # Sungchul
 .prettierignore
 .vscode
+.ipynb_checkpoints
 data
 cap
-TripoSR
-
+TripoSR/output
+TripoSR/examples/body.jpg
+TripoSR/train/model.ckpt
+TripoSR/train/config.yaml
 
 .idea
