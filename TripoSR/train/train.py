@@ -1,6 +1,7 @@
 import numpy as np
 import rembg
 import torch
+import lpips
 from PIL import Image
 
 from tsr.system import TSR
@@ -22,7 +23,7 @@ for i, image_path in enumerate(args.image):
         images.append(image)
 
 # 옵티마이저 및 손실 함수 설정
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)    # weight_decay is L2 regularization
 criterion = torch.nn.MSELoss()
 
 # Load the model
@@ -53,6 +54,7 @@ for epoch in range(100):  # number of epochs
 
         
         # Compute the loss
+        loss_fn_vgg = lpips.LPIPS(net='vgg')
         """
         def compute_loss(self, render_out, render_gt):
             # NOTE: the rgb value range of OpenLRM is [0, 1]
@@ -62,7 +64,7 @@ for epoch in range(100):  # number of epochs
             target_images = rearrange(target_images, 'b n ... -> (b n) ...') * 2.0 - 1.0
 
             loss_mse = F.mse_loss(render_images, target_images)
-            loss_lpips = 2.0 * self.lpips(render_images, target_images)
+            loss_lpips = 2.0 * loss_fn_vgg(img0, img1)
 
             render_alphas = render_out['render_alphas']
             target_alphas = render_gt['target_alphas']
