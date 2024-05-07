@@ -1,5 +1,0 @@
-- [얼굴인식 윤곽](https://github.com/tensorflow/tfjs-models/tree/master/face-landmarks-detection)
-- [얼굴형 분류 데이터 kaggle](https://www.kaggle.com/datasets/niten19/face-shape-dataset)
-- [얼굴형 분류 데이터 깃허브](https://github.com/NVlabs/ffhq-dataset)
-- [그냥 한국인 안면 데이터](https://www.aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&aihubDataSe=realm&dataSetSn=83)
-- [나이별 얼굴 데이터](https://aihub.or.kr/aihubdata/data/view.do?currMenu=115&topMenu=100&dataSetSn=71415)
