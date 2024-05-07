@@ -16,6 +16,9 @@ target image(32개)가 어떤 정보를 어떻게 포함해서 생성되는지
 
 - loss 구현
 
+[LPIPS Github](https://github.com/richzhang/PerceptualSimilarity)
+[BSD-2-Clause LICENSE](https://olis.or.kr/license/Detailselect.do?lId=1093&mapCode=010003)
+
 - 전처리
 
 - 데이터셋 불러와서 전처리까지 할수 있도록
